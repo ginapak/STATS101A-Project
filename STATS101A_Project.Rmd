@@ -1,0 +1,137 @@
+---
+title: "STATS 101A Project EDA"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+## Loading the data
+library(dplyr)
+data <- read.csv('revised_dataset.csv')
+data <- tibble(data) %>% select(acceptance_rate, name, sat_avg, hs_gpa_avg, enrollment, public_private) %>% mutate(public_private = case_when(public_private == "private" ~ 1, public_private == "public" ~ 0))
+attach(data)
+data
+```
+
+
+```{r}
+
+## Single Variable Relationships, Correlations
+
+par(mfrow = c(2, 2))
+plot(sat_avg, acceptance_rate)
+abline(lm(acceptance_rate ~ sat_avg))
+plot(hs_gpa_avg, acceptance_rate)
+abline(lm(acceptance_rate ~ hs_gpa_avg))
+plot(enrollment, acceptance_rate)
+abline(lm(acceptance_rate ~ enrollment))
+plot(public_private, acceptance_rate)
+abline(lm(acceptance_rate ~ public_private))
+
+pairs(data %>% select(acceptance_rate, sat_avg, hs_gpa_avg, enrollment, public_private))
+
+cor(data %>% select(acceptance_rate, sat_avg, hs_gpa_avg, enrollment, public_private))
+
+##VIF
+
+```
+
+```{r}
+## Untransformed and Unreduced Model
+
+m1 <- lm(acceptance_rate ~ sat_avg + hs_gpa_avg + enrollment + public_private)
+summary(m1)
+
+par(mfrow = c(2, 2))
+plot(m1)
+
+
+```
+
+```{r}
+## Transformed Model (don't include categorical variable public/private)
+
+library(car)
+
+tranxy <- powerTransform(cbind(acceptance_rate, sat_avg, hs_gpa_avg, enrollment) ~ 1)
+
+summary(tranxy)
+
+m2 <- lm(acceptance_rate ~ sat_avg + I(hs_gpa_avg^5) + public_private + enrollment)
+
+summary(m2)
+
+par(mfrow = c(2, 2))
+plot(m2)
+
+
+## Transforming sat_avg to log(sat_avg) makes our R^2 and diagnostics a bit worse, so the only variable we will transform is hs_gpa_avg to (hs_gpa_avg)^5
+```
+
+
+```{r}
+## Variable Reduction
+
+## No multicollinearity issues, since all VIFs are less than 5.
+vif(m2)
+
+## Forward Step and Backward Elmination with AIC or BIC: Include all but enrollment (as we expected)
+
+step(lm(acceptance_rate ~ 1), acceptance_rate ~ sat_avg + I(hs_gpa_avg^5) + public_private + enrollment, k = log(nrow(data)))
+#step(lm(acceptance_rate ~ 1), acceptance_rate ~ sat_avg + I(hs_gpa_avg^5) + public_private + enrollment, k = log(nrow(data)))
+
+step(lm(acceptance_rate ~ sat_avg + I(hs_gpa_avg^5) + public_private + enrollment), acceptance_rate ~ sat_avg + I(hs_gpa_avg^5) + public_private + enrollment)
+#step(lm(acceptance_rate ~ sat_avg + I(hs_gpa_avg^5) + public_private + enrollment), acceptance_rate ~ sat_avg + I(hs_gpa_avg^5) + public_private + enrollment, k = log(nrow(data)))
+
+```
+
+
+```{r}
+#Final Model
+final_model <- lm(acceptance_rate ~ sat_avg + I(hs_gpa_avg^5) + public_private)
+summary(final_model)
+par(mfrow = c(2, 2))
+plot(final_model)
+
+```
+
+
+Model Assessment
+
+R^2 and p-values are all great, and coefficients make intuitive sense. Diagnostic plots are pretty good - appears to be normally distributed. Only one bad leverage point (119) which is a small private school (Gardner-Webb University) with a pretty high average GPA and a higher acceptance rate. There is a bit of nonlinearity present that we can see on the far right of the residuals vs fitted plot. This is likely because we don't have many colleges in our dataset that have near a 100% acceptance rate, as those colleges usually don't report average GPA and test scores.
+
+
+Interpretations:
+SAT SCORE
+
+For every one point increase in SAT score, the acceptance rate tends to decrease by 0.087%. This makes sense because higher average test scores should be associated with a lower acceptance rate. Additionally, this number is very small because a one point change in an SAT score (which is out of 1600) is very small.
+
+HIGH SCHOOL GPA
+
+Difficult to interpret directly, since we transformed the variable. However, the negative coefficient shows that an increase in average high school gpa also leads to a decrease in acceptance rate.
+
+PUBLIC/PRIVATE
+
+With all else held equal, a private school tends to have a 7.54% lower acceptance rate than a public school. This could be partially affected by the fact that our dataset doesn't include many state public schools that have high acceptance rates.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
